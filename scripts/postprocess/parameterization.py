@@ -1,11 +1,5 @@
 #! /usr/bin/env python3
-"""Fit curves in latent space
-
-@author: tjrademaker, frbourassa, acharsj
-    tjrademaker: constant velocity, constant force
-    frbourassa: sigmoid models
-    acharsj: GUI
-"""
+"""Fit curves in latent space"""
 
 import warnings
 warnings.filterwarnings("ignore")
@@ -31,9 +25,9 @@ from scripts.postprocess.latent_space import WeightMatrixSelectionPage
 from scripts.process.adapt_dataframes import set_standard_order
 
 splitPath = os.getcwd().split('/')
-path = '/'.join(splitPath[:splitPath.index('cytokine-pipeline-master')+1])+'/'
+path = '/'.join(splitPath[:splitPath.index('antigen-encoding-pipeline')+1])+'/'
 
-def fit_v2_v1(node1, node2, tol_r2=0.99):
+def fit_vt_vm(node1, node2, tol_r2=0.99):
     """Fit a straight line to the final time points of latent space.
     Add time points until R^2 falls below tol_r2, when the curve is no longer straight.
     Requires at least 5 timepoints for a good fit, else returns NaN
@@ -80,8 +74,8 @@ def fit_v2_v1(node1, node2, tol_r2=0.99):
     else:
         return np.nan
 
-def compute_v2_v1(df,slope_type="median"):
-    """ Compute vt/vm = v2/v1 ratio.
+def compute_vt_vm(df,slope_type="median"):
+    """ Compute vt/vm ratio.
     Fit all conditions separately and return the mean or median slope (whichever is better)
 
     Args:
@@ -96,7 +90,7 @@ def compute_v2_v1(df,slope_type="median"):
     slopes = pd.DataFrame([], index=df.index.droplevel("Time").unique(), columns=["slope"])
     # Fit a straight line to as as many final points as possible (at least 5)
     for idx in slopes.index:
-        slopes.loc[idx] = fit_v2_v1(df.loc[idx,"Node 1"], df.loc[idx,"Node 2"])
+        slopes.loc[idx] = fit_vt_vm(df.loc[idx,"Node 1"], df.loc[idx,"Node 2"])
     # Return mean or median dropping conditions for which no slope could be reliably calculated (n_points <= 5)
     median_slope = slopes.dropna().median().values[0]
     mean_slope = slopes.dropna().mean().values[0]
@@ -111,7 +105,7 @@ def compute_v2_v1(df,slope_type="median"):
         raise NotImplementedError("%s measure is not yet implemented"%slope_type)
 
 
-def ballistic_v0(times, v0, t0, theta, vt, v2v1_ratio=1.):
+def ballistic_v0(times, v0, t0, theta, vt):
     """Piecewise ballisfic function that computes node 1 and node 2 from given parameters.
     Phase 1 is constant velocity regime.
 
@@ -120,21 +114,19 @@ def ballistic_v0(times, v0, t0, theta, vt, v2v1_ratio=1.):
         v0 (float): constant speed
         t0 (float): time until phase 1
         theta (float): angle of constant speed (radians)
-        vt (float): terminal velocity (along node 2)
-    Keyword args:
-        v2v1_ratio (float): the ratio of vt / vm previously fitted
+        vt (float): terminal velocity
 
     Returns:
         curves (2darray): array with node 1 and node 2, shape [2, times]
             Our custom curve_fit_jac can deal with vector-valued functions.
     """
     # Initialize some variables
-    vm = vt / v2v1_ratio
+    vm = vt / vt_vm_ratio
 
     x = np.zeros(times.shape)
     y = np.zeros(times.shape)
-    vx = v0 * np.cos(theta-np.pi/2-np.arctan(vm/vt))
-    vy = v0 * np.sin(theta-np.pi/2-np.arctan(vm/vt))
+    vx = v0 * np.cos(theta-np.pi/2)
+    vy = v0 * np.sin(theta-np.pi/2)
 
     # Phase 1
     prop = (times <= t0)
@@ -151,7 +143,7 @@ def ballistic_v0(times, v0, t0, theta, vt, v2v1_ratio=1.):
     return np.array([x, y])
 
 
-def ballistic_F(times, F,  t0, theta, vt, v2v1_ratio=1.):
+def ballistic_F(times, F,  t0, theta, vt):
     """Piecewise ballisfic function that computes node 1 and node 2 from given parameters.
     Phase 1 is constant force regime.
 
@@ -160,9 +152,7 @@ def ballistic_F(times, F,  t0, theta, vt, v2v1_ratio=1.):
         F (float): constant speed
         t0 (float): time until phase 1
         theta (float): angle of constant speed
-        vt (float): terminal velocity (along node 2)
-    Keyword args:
-        v2v1_ratio (float): the ratio of vt / vm previously fitted
+        vt (float): terminal velocity
 
     Returns:
         curves (2darray): array with node 1 and node 2, shape [2, times]
@@ -176,7 +166,7 @@ def ballistic_F(times, F,  t0, theta, vt, v2v1_ratio=1.):
         return F * (1 - np.exp(-t))
 
     # Initialize some variables
-    vm = vt / v2v1_ratio
+    vm = vt / vt_vm_ratio
 
     x = np.zeros(times.shape)
     y = np.zeros(times.shape)
@@ -202,15 +192,14 @@ def ballistic_F(times, F,  t0, theta, vt, v2v1_ratio=1.):
 
 ## Improved ballistic model with a sigmoid and fixed alpha.
 # Full  model for sigmoid concentration n1 and n2 given just above.
-def sigmoid_conc_full(tau, params, v2v1_ratio=1.):
+def sigmoid_conc_full(tau, params):
     """ Argument t can be an array, other parameters are scalars. params is a list. """
     # Extract parameters
     a0, t0, theta, v1, gamma = params
     a1, a2 = a0 * np.cos(theta), a0 * np.sin(theta)  # theta in radians.
-    v2 = v2v1_ratio * v1
 
     # Vector where 1st dimension is n1, second is n2
-    r = np.zeros((2, tau.shape[0]))
+    r = np.zeros((2, t.shape[0]))
 
     # Common terms
     bound_exp = 1 - np.exp(-tau)
@@ -247,7 +236,7 @@ def sig_int(tau, tau_0, gamma):
     return res
 
 # The main function computing [N_1, N_2]
-def ballistic_sigmoid(tau, a0, t0, theta, v1, gamma, v2v1_ratio=1.):
+def ballistic_sigmoid(tau, a0, t0, theta, v1, gamma):
     """ Integral expression for N_1, N_2, based on the improved ballistic equations
     with a sigmoid for n_1 and n_2.
 
@@ -258,8 +247,6 @@ def ballistic_sigmoid(tau, a0, t0, theta, v1, gamma, v2v1_ratio=1.):
         theta (float): angle of initial velocity (radians)
         v1 (float): terminal concentration in node 1
         gamma (float): degradation time scale, relative to alpha (beta/alpha)
-    Keyword args:
-        v2v1_ratio (float): the ratio of v2 / v1 previously fitted
 
     Returns:
         curves (2darray): array with node 1 and node 2, shape [2, times]
@@ -267,7 +254,7 @@ def ballistic_sigmoid(tau, a0, t0, theta, v1, gamma, v2v1_ratio=1.):
     """
     # Initialize some variables
     a1, a2 = a0 * np.cos(theta), a0 * np.sin(theta)
-    v2 = v1 * v2v1_ratio
+    v2 = v1 * vt_vm_ratio  # vt is v2 (y direction), vm is v1 (x direction)
 
     # Some terms used in both node 1 and 2
     lnterm_0 = np.log(1 + np.exp(-gamma*t0)) / gamma
@@ -286,74 +273,8 @@ def ballistic_sigmoid(tau, a0, t0, theta, v1, gamma, v2v1_ratio=1.):
 
     return np.array([N1, N2])
 
-
 ## Improved ballistic model with a sigmoid and free alpha (more parameters)
-# Full  model for sigmoid concentration n1 and n2 given just above.
-def sigmoid_conc_full_freealpha(t, params):
-    """ Argument t can be an array, other parameters are scalars. params is a list. """
-    # Extract parameters
-    a0, t0, theta, v1, alpha, beta = params
-    a1, a2 = a0 * np.cos(theta), a0 * np.sin(theta)  # theta in radians.
-    tau = t * alpha
-
-    # Vector where 1st dimension is n1, second is n2
-    r = np.zeros((2, t.shape[0]))
-
-    # Common terms
-    bound_exp = 1 - np.exp(-tau)
-    exp_beta = np.exp(gamma*(tau - t0)) + 1
-
-    # Node 1
-    r[0] = bound_exp * ((a1 + v1)/exp_beta - v1)
-
-    # Node 2
-    r[1] = (a2 + v2) * np.power(bound_exp, 2) / exp_beta - bound_exp * v2
-
-    return r
-
-
-# The main function computing [N_1, N_2]
-def ballistic_sigmoid_freealpha(times, a0, t0, theta, v1, alpha, beta, v2v1_ratio=1.):
-    """ Integral expression for N_1, N_2, based on the first-order
-    ballistic expression with a sigmoid for n_1 and n_2.
-
-    Args:
-        times (1darray): timepoints at which to compute the ballistic trajectories. Vector is doubled to accommodate fitting procedure
-        a0 (float): initial acceleration
-        t0 (float): time of half-maximum sigmoidal decay
-        theta (float): angle of initial velocity (radians)
-        v1 (float): terminal concentration in node 1
-        alpha (float): production time scale
-        beta (float): degradation time scale
-        fit (bool): if True, the function is called for fitting.
-            If false, don't double the return vector.
-        upbounds (list): upper bound on the value of each parameter,
-            for normalization in the regularization.
-        lambd (float): weight to give to the regularization term.
-    """
-    # Initialize some variables
-    a1, a2 = a0 * np.cos(theta), a0 * np.sin(theta)
-    v2 = v1 * v2v1_ratio
-    tau = times * alpha
-    tau0 = alpha * t0
-    gamma = beta / alpha
-
-    # Some terms used in both node 1 and 2
-    lnterm_0 = np.log(1 + np.exp(-gamma*t0)) / gamma
-    lnterm = np.log(np.exp(-gamma*tau) + np.exp(-gamma*t0)) / gamma
-    boundedint = tau + np.exp(-tau)
-    siginterm = sig_int(tau, t0, gamma)
-
-    # Constants to ensure it's zero at the origin
-    k1 = v1 / alpha - (a1 + v1) / alpha * (sig_int(0, t0, gamma) - lnterm_0)
-    k2 = v2 / alpha + (a2 + v2) / alpha * (sig_int(0, 2*t0, gamma/2)/2 - 2*sig_int(0, t0, gamma) + lnterm_0)
-
-    # Assemble terms
-    N1 = (a1 + v1) / alpha * (siginterm - lnterm) - v1 / alpha * boundedint + k1
-    N2 = (a2 + v2) / alpha * (2*siginterm - sig_int(2*tau, 2*t0, gamma/2)/2 - lnterm)
-    N2 += -v2 / alpha * boundedint + k2
-
-    return np.array([N1, N2])
+## TODO!
 
 
 ### FUNCTIONS PERFORMING THE FIT FOR EACH TIME COURSE
@@ -416,8 +337,7 @@ def combine_spline_df_with_fit(df, df_fit):
         df_fit (pd.DataFrame): data sampled from parameterized curves
 
     Returns:
-        df_compare (pd.DataFrame): combined dataframe with additional
-            index levels (feature, Processing type)
+        df_compare (pd.DataFrame): combined dataframe with additional index levels (feature, Processing type)
     """
 
     # Add Processing type index level
@@ -435,8 +355,7 @@ def combine_spline_df_with_fit(df, df_fit):
     tmp.columns = pd.MultiIndex.from_product([ ['concentration'], tmp.columns])
     tmp=tmp.swaplevel("Processing type","Time")
 
-    # Add feature as column level, combine integral and derivatives,
-    # stack dataframe and rename feature index level
+    # Add feature as column level, combine integral and derivatives, stack dataframe and rename feature index level
     df_compare.columns = pd.MultiIndex.from_product([ ['integral'], df_compare.columns])
     df_compare=pd.concat([df_compare,tmp],axis=1).stack(0)
     df_compare.index.names=df_compare.index.names[:-1]+["Feature"]
@@ -444,58 +363,49 @@ def combine_spline_df_with_fit(df, df_fit):
     return df_compare
 
 
-def return_param_and_fitted_latentspace_dfs(df, fittingFunctionName, reg_rate=1., time_scale=20.):
+def return_param_and_fitted_latentspace_dfs(df, fittingFunctionName, reg_rate=1.):
     """Returns parameterized dataframes to put into plotting GUI
     Args:
         df (pd.DataFrame): latent space data sampled from splines
-        fittingFunctionName (str): name of fitting function;
-            must be a key value in all dictionaries below
-        reg_rate (float or None): if None, no regularization.
-            Else, regularization rate in curve_fit_jac
-        time_scale (float): Rescaling factor for time, default 20 hours.
+        fittingFunctionName (str): name of fitting function; must be a key value in all dictionaries below
+        reg_rate (float or None): if None, no regularization. Else, regularization rate in curve_fit_jac
     Returns:
         df_params (pd.DataFrame): contains all parameters from fitting function
-        df_compare (pd.DataFrame): combined dataframe with additional
-            index levels (feature, Processing type)
+        df_compare (pd.DataFrame): combined dataframe with additional index levels (feature, Processing type)
         df_hess (pd.DataFrame): the Hessian matrices of the fit for all conditions.
             The columns give the param i, param j index of the hessian's entry.
             The hessian is obtained as J^T J, where J is the jacobian of the fit,
             scaled by the value of the parameters at the optimum (equivalent
             to computing derivatives with respect to log(param)).
-        df_v2v1 (pd.DataFrame): dataframe of v2_v1 ratios for each data set.
     """
+    # Time rescaling defined here along with models and inputted to other functions
+    time_scale = 20
     duration = df.index.get_level_values("Time").unique().max()
 
+    # TODO: add a separate option for free alpha.
     param_labels_dict = {
         'Constant velocity':["v0", "t0", "theta", "vt"],
         'Constant force':["F", "t0", "theta", "vt"],
-        'Sigmoid':["a0", "t0", "theta", "v1", "gamma"],
-        'Sigmoid_freealpha': ["a0", "t0", "theta", "v1", "alpha", "beta"]
+        'Sigmoid':["a0", "t0", "theta", "v1", "gamma"]
     }
     func_dict = {'Constant velocity':ballistic_v0,
                  'Constant force': ballistic_F,
-                 'Sigmoid':ballistic_sigmoid,
-                 'Sigmoid_freealpha': ballistic_sigmoid_freealpha}
+                 'Sigmoid':ballistic_sigmoid}
     bounds_dict = {
         'Constant velocity':[(0, 0, 0, 0), (5, 5, np.pi, 5)],
         'Constant force': [(0, 0, 0, 0), (5, 5, np.pi, 5)],
         'Sigmoid':[(0, 0, -2*np.pi/3, 0, time_scale/50),
-                    (5, (duration + 20)/time_scale, np.pi/3, 1, time_scale/2)],
-        'Sigmoid_freealpha':[(0, 0, -2*np.pi/3, 0, time_scale/50, time_scale/50),
-                            (5, (duration + 20)/time_scale, np.pi/3, 1,
-                            time_scale/2, time_scale/2)]
+                    (5, (duration + 20)/time_scale, np.pi/3, 1, time_scale/2)]
         }
     p0_dict = {
         'Constant velocity':[1, 1, 1, 1],
         'Constant force':[1, 1, 1, 1],
-        'Sigmoid':[1, 30 / time_scale, 0, 0.1, 1/7 * time_scale],
-        'Sigmoid_freealpha':[1, 30/time_scale, 0, 0.1, 1/7 * time_scale, 1.]
+        'Sigmoid':[1, 30 / time_scale, 0, 0.1, 1/7 * time_scale]
     }
     param_offsets_dict = {
         'Constant velocity': np.zeros(4),
         'Constant force': np.zeros(4),
-        'Sigmoid': np.array([0, 0, -np.pi/2, 0, 1]),
-        'Sigmoid_freealpha': np.array([0, 0, -np.pi/2, 0, 1, 1])
+        'Sigmoid': np.array([0, 0, -np.pi/2, 0, 1])
     }
 
     # Fit curves
@@ -512,15 +422,14 @@ def return_param_and_fitted_latentspace_dfs(df, fittingFunctionName, reg_rate=1.
     datasetParamList = []
     datasetFitList = []
     datasetHessList = []  # hessian without the regularization term contribution
-    datasetRatioList = []
     datasets = list(pd.unique(df.index.get_level_values('Data')))
     for dataset in datasets:
         datasetDf = df.xs([dataset], level=['Data'])
-        v2_v1_ratio = compute_v2_v1(datasetDf)
+        global vt_vm_ratio
+        vt_vm_ratio = compute_vt_vm(datasetDf)
         dataset_df_params, dataset_df_hess = return_fit_params(
             datasetDf, func, bounds, p0, param_labels, time_scale=time_scale,
-            reg_rate=reg_rate, offsets=param_offsets,
-            func_kwargs={"v2v1_ratio":v2_v1_ratio})
+            reg_rate=reg_rate, offsets=param_offsets)
 
         # Compute latent space coordinates from parameters fits
         dataset_df_fit = datasetDf.copy()
@@ -528,28 +437,26 @@ def return_param_and_fitted_latentspace_dfs(df, fittingFunctionName, reg_rate=1.
             fittingVars = dataset_df_params.loc[idx,param_labels]
             times = dataset_df_fit.loc[idx,:].index.get_level_values("Time").astype("float")/time_scale
             if not np.isnan(fittingVars.iloc[0]):
-                dataset_df_fit.loc[idx, :] = func(times, *fittingVars, v2v1_ratio=v2_v1_ratio).T
+                dataset_df_fit.loc[idx, :] = func(times, *fittingVars).T
             else:
                 dataset_df_fit.loc[idx, :] = np.nan
 
         datasetParamList.append(dataset_df_params)
         datasetFitList.append(dataset_df_fit)
         datasetHessList.append(dataset_df_hess)
-        datasetRatioList.append(v2_v1_ratio)
 
     df_params = pd.concat(datasetParamList, keys=datasets,names=['Data'])
     df_fit = pd.concat(datasetFitList, keys=datasets,names=['Data'])
     df_hess = pd.concat(datasetHessList, keys=datasets, names=['Data'])
-    df_v2v1 = pd.Series(datasetRatioList, index=pd.Index(datasets, name='Data'))
 
     # Compare fit vs splines
-    df_compare = combine_spline_df_with_fit(df.copy(), df_fit.copy())
+    df_compare = combine_spline_df_with_fit(df, df_fit)
 
-    return df_params, df_compare, df_hess, df_v2v1
-
+    return df_params, df_compare, df_hess
 
 ### CODE FOR THE GUI
 # TODO: bind the Sigmoid model to the GUI as well:
+#   - Regularization rate as an option when selecting the model to fit (change collectInputs)
 #   - Option to plot the FIM eigenvectors and eigenvalues (add an option in the class PlottingDataframe...)
 class FittingFunctionSelectionPage(tk.Frame):
     def __init__(self, master, df, bp):
@@ -557,6 +464,7 @@ class FittingFunctionSelectionPage(tk.Frame):
         global backPage
         global dfToParameterize
         dfToParameterize = df.copy()
+        print(np.mean(df['Node 1'].values))
         backPage = bp
 
         mainWindow = tk.Frame(self)
@@ -565,7 +473,7 @@ class FittingFunctionSelectionPage(tk.Frame):
         l1.grid(row=0, column=0, sticky=tk.W)
         mainWindow.pack(side=tk.TOP, padx=10, pady=10)
 
-        functionList = ['Constant velocity', 'Constant force', 'Sigmoid', 'Sigmoid_freealpha']
+        functionList = ['Constant velocity', 'Constant force', 'Sigmoid']
         functionVar = tk.StringVar(value=functionList[0])
         rblist = []
         for i, function in enumerate(functionList):
@@ -574,23 +482,17 @@ class FittingFunctionSelectionPage(tk.Frame):
             rb.grid(row=i+1, column=0, sticky=tk.W)
             rblist.append(rb)
 
-        # Regularization rate and time scale as inputs. Entry boxes.
+        # Regularization rate as an input. Entry box.
         regrate_memory = tk.StringVar(value="1.")  # Default value, can be converted to float
         l2 = tk.Label(mainWindow,
             text="Enter a regularization rate (positive float):",
             font="Helvetica 18 bold")
         l2.grid(row=len(functionList)+1, column=0, sticky=tk.W)
 
-        tscl_memory = tk.StringVar(value="20.")  # Default value, can be converted to float
-        l4 = tk.Label(mainWindow,
-            text="Enter a time rescaling factor (positive float):",
-            font="Helvetica 18 bold")
-        l4.grid(row=len(functionList)+3, column=0, sticky=tk.W)
-
-        # Add a label at the bottom explaining how to remove focus to validate
+        # Add a label explaining how to remove focus to validate the value
         l3Var = tk.StringVar(value="Enter a non-negative float")
         l3 = tk.Label(mainWindow, textvariable=l3Var,
-            font="Helvetica 12").grid(row=len(functionList)+5,
+            font="Helvetica 12").grid(row=len(functionList)+3,
                 column=0, sticky=tk.W)
 
         # Float input validation
@@ -607,55 +509,40 @@ class FittingFunctionSelectionPage(tk.Frame):
 
         # Main validation and correction function
         # Always return True, because we manually revert the change if needed.
-        def validate_main(reason, former, proposed, mem, entry, feature="Regularization rate"):
+        def validate_main(reason, former, proposed):
             # Save the current variable before the user edits
             if reason == "focusin":
-                mem.set(former)
+                regrate_memory.set(former)
                 l3Var.set("Press TAB to validate")
             # Check the proposed string after user edits, rollback if needed
             elif reason == "focusout":
                 l3Var.set("Enter a non-negative float")
                 if validate_float(proposed):
-                    mem.set(proposed)
-                    print(feature + " chosen:", proposed)
+                    regrate_memory.set(proposed)
+                    print("Regularization rate chosen:", proposed)
                 else:
                     # Put back the value prior to the user focusin on the box
                     # Won't be called before regrateEntry is created, so no bug
-                    entry.delete(0, tk.END)
-                    entry.insert(0, mem.get())
+                    regrateEntry.delete(0, tk.END)
+                    regrateEntry.insert(0, regrate_memory.get())
             else:
                 pass
             return True
 
         # And registered commands
-        def validate_main_reg(reason, former, proposed):
-            return validate_main(reason, former, proposed, regrate_memory,
-                            regrateEntry, feature="Regularization rate")
-        def validate_main_scl(reason, former, proposed):
-            # We allow time_scale = 0. meaning no rescaling, i.e. time_scale=1
-            return validate_main(reason, former, proposed, tscl_memory,
-                            tsclEntry, feature="Time scale")
         fake_widget = tk.Entry()
-        validate_cmd_reg = (fake_widget.register(validate_main_reg), "%V", "%s", "%P")
-        validate_cmd_scl = (fake_widget.register(validate_main_scl), "%V", "%s", "%P")
+        validate_cmd = (fake_widget.register(validate_main), "%V", "%s", "%P")
+        # Is this necessary since no substitution codes?
 
-        # Now create the Entries with their validation commands
+        # Now create the Entry with its validation commands
         regrateEntry = tk.Entry(mainWindow, bg="white",
             exportselection=0,
             width=6, # allow 0. to 1., 1.2e-5, etc.
             validate="focus", # Validate after the user has finished typing
-            validatecommand=validate_cmd_reg)
+            validatecommand=validate_cmd)
             # To validate, output the proposed new text to the validate_float function)
         regrateEntry.grid(row=len(functionList)+2, column=0, sticky=tk.W)
         regrateEntry.insert(0, regrate_memory.get())
-
-        tsclEntry = tk.Entry(mainWindow, bg="white",
-            exportselection=0,
-            width=6, # allow 0. to 1., 1.2e-5, etc.
-            validate="focus", # Validate after the user has finished typing
-            validatecommand=validate_cmd_scl)
-        tsclEntry.grid(row=len(functionList)+4, column=0, sticky=tk.W)
-        tsclEntry.insert(0, tscl_memory.get())
 
         def collectInputs():
             # Get the inputs, function to fit and regularization rate
@@ -670,23 +557,10 @@ class FittingFunctionSelectionPage(tk.Frame):
                 regrate = float(regrate_memory.get())
             print("Regularization rate chosen:", regrate)
 
-            try:
-                tscale = float(tsclEntry.get())
-            except ValueError:
-                tscale = -1
-            if tscale <= 0.:
-                print("The last inputted time scale was invalid; ")
-                print("Reverting to the last validated scale. ")
-                tscale = float(tscl_memory.get())
-            if tscale == 0.:
-                tscale = 1.
-            print("Time scale chosen:", tscale)
-
             global df_params_plot, df_compare_plot
             # This is the only place where return_param_... is used.
-            df_params_plot, df_compare_plot, df_hess_plot, df_v2v1 = \
-                return_param_and_fitted_latentspace_dfs(dfToParameterize,
-                    functionName, reg_rate=regrate, time_scale=tscale)
+            df_params_plot, df_compare_plot, df_hess_plot = \
+                return_param_and_fitted_latentspace_dfs(dfToParameterize, functionName, reg_rate=regrate)
             # TODO: use df_hess_plot for a Fisher info. analysis of the fit.
 
             df_params_columns = list(df_params_plot.columns)

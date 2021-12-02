@@ -1,7 +1,4 @@
-"""Reconstruct cytokine time series from latent space curves.
-
-To be coded!
-"""
+"""Fit curves in latent space"""
 
 import warnings
 warnings.filterwarnings("ignore")
@@ -15,8 +12,8 @@ from scipy.optimize import curve_fit
 from scipy.stats import linregress
 
 
-# Fit a straight line to the final time points of the (node1, node2) curve.
-# Add time points until R^2 falls under tol_r2, which means the curve is no longer straight.
+# Fit a straight line to the final time points of the (node1, node2) curve. 
+# Add time points until R^2 falls under tol_r2, which means the curve is no longer straight. 
 # Requires at least 5 data points for a good fit
 def fit_vt_vm(node1, node2, tol_r2=0.99):
     n_points = 1
@@ -48,39 +45,39 @@ def compute_vt_vm(df):
 
 # Piecewise ballistic function
 def ballistic(times, v_0, theta, t_0, v_t):
-
+    
     # Only keep unique values in times vector (which has double entries)
     times=np.unique(times)
-
+    
     # Initialize some variables
     x = np.zeros(times.shape)
     y = np.zeros(times.shape)
     v_x = v_0 * np.cos(theta * 2 * np.pi / 360)
     v_y = v_0 * np.sin(theta * 2 * np.pi / 360)
     v_m = v_t / vt_vm_ratio
-
+    
     # Phase 1
     prop = (times <= t_0)
     x[prop] = v_x * times[prop]
     y[prop] = v_y * times[prop]
-
+    
     # Phase 2
     r0 = [v_x*t_0,v_y*t_0]  # Position at the end of the propulsion phase
     delta_t = times[~prop] - t_0
-
+    
     x[~prop] = (v_x + v_m) * (1-np.exp(-2*delta_t))/2 - v_m * delta_t + r0[0]
     y[~prop] = (v_y + v_t) * (1-np.exp(-2*delta_t))/2 - v_t * delta_t + r0[1]
-
+    
     return np.array([x, y]).flatten()
 
 
-# Find the best fit for each time course in the DataFrame.
+# Find the best fit for each time course in the DataFrame. 
 def fit_all_curves(df):
-    # Initialize a dataframe that will record parameters fitted to each curve.
+    # Initialize a dataframe that will record parameters fitted to each curve. 
     cols = ["v_0", "theta", "t_0", "v_t", "var v_0", "var theta", "var t_0", "var v_t"]
     df_params = pd.DataFrame([], index=df.index.droplevel("Time").unique(), columns=cols)
-    times=np.tile(df.index.get_level_values("Time").astype("int")/time_scale,[2])
-
+    times=np.tile(df.index.get_level_values("Time").astype("int")/time_scale,[2])    
+    
     # Fit each curve, then return the parameters
     for idx in df_params.index:
         peptide = idx[df_params.index.names.index("Peptide")]
@@ -93,7 +90,7 @@ def fit_all_curves(df):
 
         df_params.loc[idx, ["v_0", "theta", "t_0", "v_t"]] = popt
         df_params.loc[idx, ["var v_0", "var theta", "var t_0", "var v_t"]] = np.diag(pcov)
-
+    
     return df_params
 
 

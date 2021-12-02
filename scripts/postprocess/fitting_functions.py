@@ -10,9 +10,6 @@ Added features:
     - Regularize each parameter around a specified non-zero value
     with the offsets argument.
     - Returning the jacobian of the cost function as well as the covariance.
-
-@author: frbourassa
-July 2020
 """
 import numpy as np
 import scipy as sp

@@ -18,7 +18,7 @@ from scripts.gui.plotting.plottingGUI import createLabelDict,checkUncheckAllButt
 from scripts.process.adapt_dataframes import set_standard_order
 
 splitPath = os.getcwd().split('/')
-path = '/'.join(splitPath[:splitPath.index('cytokine-pipeline-master')+1])+'/'
+path = '/'.join(splitPath[:splitPath.index('antigen-encoding-pipeline')+1])+'/'
 
 idx = pd.IndexSlice
 
@@ -36,7 +36,7 @@ class InputDatasetSelectionPage(tk.Frame):
         trueLabelDict = {}
 
         #Sort by date/number/quality/quantity
-        print("Sorting all labels and levels... it can take a while")
+        print(dataset)
         dataset = set_standard_order(dataset.reset_index())
         sortedValues = set_standard_order(dataset.copy(),returnSortedLevelValues=True)
 
@@ -57,62 +57,31 @@ class InputDatasetSelectionPage(tk.Frame):
         e2.grid(row=0,column=1)
         e2.insert(0, '1-72')
 
-        # Buttons at the bottom, pack them first so they don't disappear
-        # https://stackoverflow.com/questions/42074654/avoid-the-status-bar-footer-from-disappearing-in-a-gui-when-reducing-the-size
-        self.buttonWindow = tk.Frame(self)
-        self.buttonWindow.pack(side=tk.BOTTOM,pady=10)
+        """BEGIN TEMP SCROLLBAR CODE"""
+        labelWindow1 = tk.Frame(self)
+        labelWindow1.pack(side=tk.TOP,padx=10,fill=tk.X,expand=True)
 
-        # Find the max number of level values
-        maxNumLevelValues = 0
-        for labelList in trueLabelDict.values():
-            if len(labelList) > maxNumLevelValues:
-                maxNumLevelValues = len(labelList)
+        #Make canvas
+        w1 = tk.Canvas(labelWindow1, width=1500, height=600, scrollregion=(0,0,3000,1200))
 
-        tk.Button(self.buttonWindow, text="OK",
-                command=lambda: collectInputs(dataset)
-            ).pack(in_=self.buttonWindow, side=tk.LEFT)
-        tk.Button(self.buttonWindow, text="Back",
-                command=lambda: master.switch_frame(master.homepage)
-            ).pack(in_=self.buttonWindow, side=tk.LEFT)
-        tk.Button(self.buttonWindow, text="Quit",
-                command=lambda: quit()
-            ).pack(in_=self.buttonWindow, side=tk.LEFT)
-
-        # Frame to contain the scrollable canvas and the scrollbars within the
-        # main window.
-        self.labelWindow1 = tk.Frame(self)
-        self.labelWindow1.pack(side=tk.TOP,padx=10,fill=tk.X,expand=tk.NO)
-
-        # Make canvas inside that frame
-        self.w1 = tk.Canvas(self.labelWindow1, borderwidth=0, width=1200,
-            height=600)
-
-        # Make scrollbar in side the self.labelWindow1 frame as well
-        scr_v1 = tk.Scrollbar(self.labelWindow1, orient=tk.VERTICAL, command=self.w1.yview)
+        #Make scrollbar
+        scr_v1 = tk.Scrollbar(labelWindow1,orient=tk.VERTICAL)
         scr_v1.pack(side=tk.RIGHT,fill=tk.Y)
-        # Add and bind scrollbar to canvas
-        self.w1.config(yscrollcommand=scr_v1.set)
-        self.w1.pack(fill=tk.BOTH, expand=tk.NO)
+        scr_v1.config(command=w1.yview)
+        #Add scrollbar to canvas
+        w1.config(yscrollcommand=scr_v1.set)
+        w1.pack(fill=tk.BOTH,expand=True)
 
-        # Make another horizontal scrollbar
-        scr_v2 = tk.Scrollbar(self.labelWindow1, orient=tk.HORIZONTAL, command=self.w1.xview)
-        scr_v2.pack(side=tk.BOTTOM, fill=tk.X)
-        self.w1.config(xscrollcommand=scr_v2.set)
-        self.w1.pack(fill=tk.BOTH, expand=tk.NO)
-
-        # Make a frame to contain the list of radio buttons inside the Canvas
-        # This is to create all buttons at once so they can be scrolled
-        self.labelWindow = tk.Frame(self.w1)
-        self.labelWindow.pack(fill=tk.BOTH, expand=tk.NO)
-        self.w1.create_window((0,0), window=self.labelWindow, anchor = tk.NW)
-
-        # Bind the label frame's <Configure> to the canvas' size
-        # See https://stackoverflow.com/questions/3085696/adding-a-scrollbar-to-a-group-of-widgets-in-tkinter
-        self.labelWindow1.bind("<Configure>", self.onFrameConfigure)
+        #Make and add frame for widgets inside of canvas
+        #canvas_frame = tk.Frame(w1)
+        labelWindow = tk.Frame(w1)
+        labelWindow.pack()
+        w1.create_window((0,0),window=labelWindow, anchor = tk.NW)
+        """END TEMP SCROLLBAR CODE"""
         #labelWindow = tk.Frame(self)
         #labelWindow.pack(side=tk.TOP,padx=10,fill=tk.X,expand=True)
 
-        l1 = tk.Label(self.labelWindow, text='Parameters:',pady=10, font='Helvetica 18 bold').grid(row=0,column = 0,columnspan=len(trueLabelDict)*6)
+        l1 = tk.Label(labelWindow, text='Parameters:',pady=10, font='Helvetica 18 bold').grid(row=0,column = 0,columnspan=len(trueLabelDict)*6)
         levelValueCheckButtonList = []
         overallCheckButtonVariableList = []
         checkAllButtonList = []
@@ -123,24 +92,24 @@ class InputDatasetSelectionPage(tk.Frame):
             j=0
             levelCheckButtonList = []
             levelCheckButtonVariableList = []
-            levelLabel = tk.Label(self.labelWindow, text=levelName+':')
+            levelLabel = tk.Label(labelWindow, text=levelName+':')
             levelLabel.grid(row=1,column = i*6,sticky=tk.N,columnspan=5)
             for levelValue in trueLabelDict[levelName]:
                 includeLevelValueBool = tk.BooleanVar()
-                cb = tk.Checkbutton(self.labelWindow, text=levelValue, variable=includeLevelValueBool)
+                cb = tk.Checkbutton(labelWindow, text=levelValue, variable=includeLevelValueBool)
                 cb.grid(row=j+4,column=i*6+2,columnspan=2,sticky=tk.W)
-                self.labelWindow.grid_columnconfigure(i*6+3,weight=1)
+                labelWindow.grid_columnconfigure(i*6+3,weight=1)
                 cb.select()
                 levelCheckButtonList.append(cb)
                 levelCheckButtonVariableList.append(includeLevelValueBool)
                 j+=1
 
-            checkAllButton1 = checkUncheckAllButton(self.labelWindow,levelCheckButtonList, text='Check All')
+            checkAllButton1 = checkUncheckAllButton(labelWindow,levelCheckButtonList, text='Check All')
             checkAllButton1.configure(command=checkAllButton1.checkAll)
             checkAllButton1.grid(row=2,column=i*6,sticky=tk.N,columnspan=3)
             checkAllButtonList.append(checkAllButton1)
 
-            uncheckAllButton1 = checkUncheckAllButton(self.labelWindow,levelCheckButtonList, text='Uncheck All')
+            uncheckAllButton1 = checkUncheckAllButton(labelWindow,levelCheckButtonList, text='Uncheck All')
             uncheckAllButton1.configure(command=checkAllButton1.uncheckAll)
             uncheckAllButton1.grid(row=2,column=i*6+3,sticky=tk.N,columnspan=3)
             uncheckAllButtonList.append(checkAllButton1)
@@ -200,57 +169,63 @@ class InputDatasetSelectionPage(tk.Frame):
 
             proj_df = df_WT_proj.iloc[::5,:]
             master.switch_frame(selectLevelsPage,proj_df,InputDatasetSelectionPage)
-    def onFrameConfigure(self, event):
-        """ Reset the scroll region to encompass the entire inner frame,
-        so no radio button labels are missing. """
-        self.w1.configure(scrollregion=self.w1.bbox("all"))
 
-    def resizeFrame(self, event):
-        width = event.width
-        self.labelWindow1.itemconfig(self)
+        buttonWindow = tk.Frame(self)
+        buttonWindow.pack(side=tk.TOP,pady=10)
 
+        tk.Button(buttonWindow, text="OK",command=lambda: collectInputs(dataset)).grid(row=maxNumLevelValues+4,column=0)
+        tk.Button(buttonWindow, text="Back",command=lambda: master.switch_frame(master.homepage)).grid(row=maxNumLevelValues+4,column=1)
+        tk.Button(buttonWindow, text="Quit",command=lambda: quit()).grid(row=maxNumLevelValues+4,column=2)
 
-def import_WT_output(folder=path+"data/processed/"):
+def import_WT_output():
     """Import splines from wildtype naive OT-1 T cells by looping through all datasets
 
     Returns:
             df_full (dataframe): the dataframe with processed cytokine data
     """
+
+    folder=path+"data/processed/"
+
     naive_pairs={
-        "ActivationType": "Naive",
-        "Antibody": "None",
-        "APC": "B6",
-        "APCType": "Splenocyte",
-        "CARConstruct": "None",
-        "CAR_Antigen": "None",
-        "Genotype": "WT",
-        "IFNgPulseConcentration": "None",
-        "TCellType": "OT1",
-        "TLR_Agonist": "None",
-        "TumorCellNumber": "0k",
-        "DrugAdditionTime": 36,
-        "Drug": "Null",
-        "ConditionType": "Null",
-        "TCR": "OT1"
-    }
-
-    dfs_dict = {}
+            "ActivationType": "Naive",
+            "Antibody": "None",
+            "APC": "B6",
+            "APCType": "Splenocyte",
+            "CARConstruct":"None",
+            "CAR_Antigen":"None",
+            "Genotype": "WT",
+            "IFNgPulseConcentration":"None",
+            "TCellType": "OT1",
+            "TLR_Agonist":"None",
+            "TumorCellNumber":"0k",
+            "DrugAdditionTime":36,
+            "Drug":"Null"
+            }
+    validnames = ['TCellNumber','PeptideComparison','Activation','PeptideTumor']
     for file in os.listdir(folder):
-        if ".hdf" not in file:
-            continue
+        valid = False
+        for validname in validnames:
+            if validname in file:
+                valid = True
+                break
+        if valid:
+            print(file)
+            if ".hdf" not in file:
+                continue
 
-        df=pd.read_hdf(folder + file)
-        mask=[True] * len(df)
+            df=pd.read_hdf(folder + file)
+            mask=[True] * len(df)
 
-        for index_name in df.index.names:
-            if index_name in naive_pairs.keys():
-                mask=np.array(mask) & np.array([index == naive_pairs[index_name] for index in df.index.get_level_values(index_name)])
-                df=df.droplevel([index_name])
-        dfs_dict[file[:-4]] = df[mask]
-        print(file)
-        print(df[mask].index.names)
-    # Concatenate all dfs
-    df_full = pd.concat(dfs_dict, names=["Data"])
+            for index_name in df.index.names:
+                if index_name in naive_pairs.keys():
+                    mask=np.array(mask) & np.array([index == naive_pairs[index_name] for index in df.index.get_level_values(index_name)])
+                    df=df.droplevel([index_name])
+
+            df=pd.concat([df[mask]],keys=[file[:-4]],names=["Data"]) #add experiment name as multiindex level
+            if "df_full" not in locals():
+                df_full=df.copy()
+            else:
+                df_full=pd.concat((df_full,df))
     return df_full
 
 def plot_weights(mlp,cytokines,peptides,**kwargs):

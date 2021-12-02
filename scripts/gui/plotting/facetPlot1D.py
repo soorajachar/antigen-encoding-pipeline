@@ -6,7 +6,8 @@ import numpy as np
 import pickle,sys,os,math
 from itertools import groupby
 from matplotlib.widgets import RadioButtons,Button,CheckButtons,TextBox
-from scripts.gui.dataprocessing.miscFunctions import reindexDataFrame,returnTicks
+sys.path.insert(0, '../../programs/dataProcessing/')
+from miscFunctions import reindexDataFrame,returnTicks
 from matplotlib import colors,ticker
 from scipy.signal import savgol_filter
 from operator import itemgetter
@@ -24,14 +25,14 @@ def returnLogYTicksAndLabels(yvals):
         for minory in minoryticks:
             allminoryticks.append(ytick+minory)
     return allyticks,allyticklabels,allminoryticks
-
+        
 def plot(plottingDf,subsettedDf,kwargs,facetKwargs,auxillaryKwargs,plotOptions):
     #Will need to update to make sure it pulls from y axis variable
     yvar = kwargs.pop('y')
     if auxillaryKwargs['subPlotType'] == 'histogram':
         fg = sns.FacetGrid(plottingDf,legend_out=True,**facetKwargs,**kwargs,**plotOptions['Y']['figureDimensions'])
         if plotOptions['Y']['axisScaling'] == 'Logarithmic':
-            hist_kws = {'hist_kws':{'log':True}}
+            hist_kws = {'hist_kws':{'log':True}} 
         else:
             hist_kws = {}
         fg.map(sns.distplot,yvar,bins=256,kde=False,**hist_kws)
@@ -67,8 +68,8 @@ def plot(plottingDf,subsettedDf,kwargs,facetKwargs,auxillaryKwargs,plotOptions):
             hist = hist[1:]
             numUniquePlots = len(uniqueKwargCombinations)
             histBins = np.tile(list(range(1,1024,4)),numUniquePlots)
-            smoothedHistBins = savgol_filter(hist, auxillaryKwargs['plotspecifickwargs']['smoothing']-1, 2)
-
+            smoothedHistBins = savgol_filter(hist, auxillaryKwargs['plotspecifickwargs']['smoothing']-1, 2) 
+            
             if not auxillaryKwargs['plotspecifickwargs']['scaleToMode']:
                 if plotOptions['Y']['axisScaling'] == 'Logarithmic':
                     cutoff = 1
@@ -76,13 +77,13 @@ def plot(plottingDf,subsettedDf,kwargs,facetKwargs,auxillaryKwargs,plotOptions):
                     cutoff = 0
             else:
                 if plotOptions['Y']['axisScaling'] == 'Logarithmic':
-                    cutoff = 0.001
+                    cutoff = 0.001 
                 else:
                     cutoff = 0
             for i,val in enumerate(smoothedHistBins):
                 if val < cutoff:
                     smoothedHistBins[i] = cutoff
-
+             
             mi  = pd.MultiIndex.from_tuples(indexTuples,names=itemgetter(*kwargIndices)(list(plottingDf.columns)))
             if auxillaryKwargs['plotspecifickwargs']['scaleToMode']:
                 hist = [x*100 for x in hist]
@@ -96,7 +97,7 @@ def plot(plottingDf,subsettedDf,kwargs,facetKwargs,auxillaryKwargs,plotOptions):
 
             newdf = pd.DataFrame(data,columns=columns,index=mi)
             plottingDf = newdf.reset_index()
-
+            
             fg = sns.relplot(data=plottingDf,kind='line',x='MFI',y=columns[1],facet_kws=facetKwargs,**kwargs,**plotOptions['Y']['figureDimensions'])
 
             xtickValues,xtickLabels = returnTicks([-1000,1000,10000,100000])
@@ -112,6 +113,6 @@ def plot(plottingDf,subsettedDf,kwargs,facetKwargs,auxillaryKwargs,plotOptions):
                 axis.set_xlim([minVal,maxVal])
                 if plotOptions['Y']['axisScaling'] == 'Logarithmic':
                     axis.set_yscale('log')
-
+            
     #fg.add_legend()
     return fg

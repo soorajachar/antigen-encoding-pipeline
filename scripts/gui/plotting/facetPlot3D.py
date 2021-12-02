@@ -8,7 +8,8 @@ from itertools import groupby
 from matplotlib.widgets import RadioButtons,Button,CheckButtons,TextBox
 from matplotlib.colors import LogNorm,SymLogNorm
 import sys,os,json,pickle,math,itertools
-from scripts.gui.dataprocessing.miscFunctions import reindexDataFrame
+sys.path.insert(0, '../../programs/dataProcessing/')
+from miscFunctions import reindexDataFrame
 from matplotlib import colors,ticker
 
 dividerLength = 0.16
@@ -115,15 +116,15 @@ def draw_faceted_heatmap(data,indexingdf,xaxis,yaxis,zaxis,lognorm,cbarticks,log
     for fn in os.listdir('misc'):
         if 'experimentParameters' in fn:
             experimentParametersBool = True
-            experimentParameters = json.load(open('misc/'+fn,'r'))
+            experimentParameters = json.load(open('misc/'+fn,'r')) 
     if experimentParametersBool:
         data = reorderDfByExperimentParameters(data,experimentParameters)
-
+    
     data.columns.name = xaxis
     if logarithmic:
         g = sns.heatmap(data, norm=lognorm,**kwargs,cbar=True,cbar_kws={"ticks": cbarticks,'label':zaxis})
     elif symlog:
-        linthresh = int(linthresh)
+        linthresh = int(linthresh) 
         maxlog=int(np.ceil(np.log10(data.values.max())))
         minlog=int(np.ceil(np.log10(-1*data.values.min())))
         tick_locations=([-(10**x) for x in range(-linthresh, minlog+1, 1)][::-1]+[0.0]+[(10**x) for x in range(-linthresh,maxlog+1, 1)] )
@@ -137,7 +138,7 @@ def draw_faceted_heatmap(data,indexingdf,xaxis,yaxis,zaxis,lognorm,cbarticks,log
     label_index(ax1,data)
     draw_borders(g,data)
     label_columns(ax1,data)
-
+     
     label_headers(ax1,data)
 
 def plot(plottingDf,subsettedDf,kwargs,facetKwargs,auxillaryKwargs,plotOptions):
@@ -162,7 +163,7 @@ def plot(plottingDf,subsettedDf,kwargs,facetKwargs,auxillaryKwargs,plotOptions):
             cbar_ticks = [math.pow(10, i) for i in range(math.floor(math.log10(subsettedDf[kwargs['z']].min().min())), 1+math.ceil(math.log10(subsettedDf[kwargs['z']].max().max())))]
             lin_thresh = ''
         elif plotOptions['Colorbar']['axisScaling'] == 'Biexponential':
-            logbool = False
+            logbool = False 
             symlogbool = True
             lin_thresh =plotOptions['Colorbar']['linThreshold']
             sym_log_norm = SymLogNorm(linthresh=float(lin_thresh),linscale=1)
@@ -175,7 +176,7 @@ def plot(plottingDf,subsettedDf,kwargs,facetKwargs,auxillaryKwargs,plotOptions):
             sym_log_norm = ''
             cbar_ticks= ''
             lin_thresh = ''
-
+        
         fg.map_dataframe(draw_faceted_heatmap, indexingdf=subsettedDf,xaxis=kwargs['x'], yaxis=kwargs['y'], zaxis=kwargs['z']
                 ,lognorm=log_norm,cbarticks=cbar_ticks,logarithmic=logbool,symlog=symlogbool,symlognorm=sym_log_norm,linthresh=lin_thresh)
         #STILL NEED TO WORK ON PUTTING COLORBARS ONLY AT THE END OF A ROW OF HEATMAPS

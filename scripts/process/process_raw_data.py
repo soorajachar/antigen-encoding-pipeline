@@ -23,7 +23,7 @@ if sys_pf == 'darwin':
 import tkinter as tk
 from tkinter import ttk
 from scripts.process.adapt_dataframes import set_standard_order
-from scripts.gui.plotting.plottingGUI import createLabelDict, checkUncheckAllButton, selectLevelsPage
+from scripts.gui.plotting.plottingGUI import createLabelDict, checkUncheckAllButton, selectLevelsPage 
 from scripts.process.adapt_dataframes import set_standard_order
 
 import numpy as np
@@ -34,7 +34,7 @@ import matplotlib.pyplot as plt
 import seaborn as sns
 
 splitPath = os.getcwd().split('/')
-path = '/'.join(splitPath[:splitPath.index('cytokine-pipeline-master')+1])+'/'
+path = '/'.join(splitPath[:splitPath.index('antigen-encoding-pipeline')+1])+'/'
 
 def moving_average(points, kernelsize):
     """ Moving average filtering on the array of experimental points, averages over a block of size kernelsize.
@@ -152,6 +152,7 @@ def generate_splines(df, smoothed, rtol=1/2):#check_finite=True
         for row in spline_frame.index:
             y = np.concatenate(([0],smoothed.loc[row, cyto]))
             r = np.concatenate(([0],df.loc[row, cyto]))
+            # TODO: include monotonic cubic spline fitting (PCHIP) instead
             tolerance = rtol * np.sum((y - r)**2)
             spl = scipy.interpolate.UnivariateSpline(inter_t, y, s=tolerance)
             spline_frame.loc[row, cyto] = spl
@@ -260,10 +261,7 @@ def extract_features(df_spline,max_time=72):
 
 
 def update_integral_features(df_int):
-    """ Function to make integrals monotonuous. Decreasing integrals are an
-    artefact from the spline fitting procedure. Knots are fixed at start and
-    end, which may cause the concentration to dip below the unphysical zero
-    (in minimum of log transformed space), and thus integrals to decrease.
+    """ Function to make integrals monotonuous. Decreasing integrals are an artefact from the spline fitting procedure. Knots are fixed at start and end, which may cause the concentration to dip below the unphysical zero (in minimum of log transformed space), and thus integrals to decrease.
 
     Args:
         df_int(pd.DataFrame): dataframe with integral features (potentially nonmonotonuous)
@@ -350,33 +348,18 @@ def process_file(folder,file, **kwargs):
 class SplineDatasetSelectionPage(tk.Frame):
     def __init__(self, master):
         tk.Frame.__init__(self, master)
-        # Action radio buttons at the top
-        self.actionWindow = tk.Frame(self)
-        self.actionWindow.pack(side=tk.TOP,padx=10,pady=20)
-        l1 = tk.Label(self.actionWindow, text="Select action:", font='Helvetica 18 bold').grid(row=0,column=0,sticky=tk.W)
+
+        actionWindow = tk.Frame(self)
+        actionWindow.pack(side=tk.TOP,padx=10,pady=20)
+        l1 = tk.Label(actionWindow, text="Select action:", font='Helvetica 18 bold').grid(row=0,column=0,sticky=tk.W)
         rblist = []
         actions = ['Create Splines','Plot Splines']
         actionVar = tk.StringVar(value=actions[0])
         for i,action in enumerate(actions):
-            rb = tk.Radiobutton(self.actionWindow,text=action, variable=actionVar,value=action)
+            rb = tk.Radiobutton(actionWindow,text=action, variable=actionVar,value=action)
             rb.grid(row=i+1,column=0,sticky=tk.W)
             rblist.append(rb)
-        # Buttons at the bottom to navigate between pages
-        # Pack them before the data selection so it does not shrink.
-        self.buttonWindow = tk.Frame(self)
-        self.buttonWindow.pack(side=tk.BOTTOM, pady=10, expand=tk.YES)
 
-        tk.Button(self.buttonWindow, text="OK",
-                command=lambda: collectInputs()
-            ).pack(in_=self.buttonWindow,side=tk.LEFT)
-        tk.Button(self.buttonWindow, text="Back",
-                command=lambda: master.switch_frame(master.homepage)
-            ).pack(in_=self.buttonWindow,side=tk.LEFT)
-        tk.Button(self.buttonWindow, text="Quit",
-                command=lambda: quit()
-            ).pack(in_=self.buttonWindow,side=tk.LEFT)
-
-        # Collect the list of available data sets
         folder = path+"data/final/"
         fileNameDict = {}
         for fileName in os.listdir(folder):
@@ -385,64 +368,61 @@ class SplineDatasetSelectionPage(tk.Frame):
         sortedFileNameDict = set_standard_order(pd.DataFrame({'Data':list(fileNameDict.keys())}),returnSortedLevelValues=True)
         trueLabelDict = {'Select dataset':sortedFileNameDict['Data']}
 
-        # Frame to contain the scrollable canvas and the scrollbar within the
-        # main window.
-        self.labelWindow1 = tk.Frame(self)
-        self.labelWindow1.pack(side=tk.TOP,padx=10,fill=tk.X,expand=tk.NO)
+        labelWindow1 = tk.Frame(self)
+        labelWindow1.pack(side=tk.TOP,padx=10,fill=tk.X,expand=True)
 
-        # Make canvas inside that frame
-        self.w1 = tk.Canvas(self.labelWindow1, borderwidth=0,
-            height=600)
+        """BEGIN TEMP SCROLLBAR CODE"""
+        labelWindow1 = tk.Frame(self)
+        labelWindow1.pack(side=tk.TOP,padx=10,fill=tk.X,expand=True)
 
-        # Make scrollbar in side the self.labelWindow1 frame as well
-        scr_v1 = tk.Scrollbar(self.labelWindow1, orient=tk.VERTICAL, command=self.w1.yview)
+        #Make canvas
+        w1 = tk.Canvas(labelWindow1, width=600, height=800, scrollregion=(0,0,5000,2000))
+
+        #Make scrollbar
+        scr_v1 = tk.Scrollbar(labelWindow1,orient=tk.VERTICAL)
         scr_v1.pack(side=tk.RIGHT,fill=tk.Y)
-        # Add and bind scrollbar to canvas
-        self.w1.config(yscrollcommand=scr_v1.set)
-        self.w1.pack(fill=tk.BOTH, expand=tk.NO)
+        scr_v1.config(command=w1.yview)
+        #Add scrollbar to canvas
+        w1.config(yscrollcommand=scr_v1.set)
+        w1.pack(fill=tk.BOTH,expand=True)
 
-        # Make a frame to contain the list of radio buttons inside the Canvas
-        # This is to create all buttons at once so they can be scrolled
-        self.labelWindow = tk.Frame(self.w1)
-        self.labelWindow.pack(fill=tk.BOTH, expand=tk.NO)
-        self.w1.create_window((0,0), window=self.labelWindow, anchor = tk.NW)
+        #Make and add frame for widgets inside of canvas
+        #canvas_frame = tk.Frame(w1)
+        labelWindow = tk.Frame(w1)
+        labelWindow.pack()
+        w1.create_window((0,0),window=labelWindow, anchor = tk.NW)
+        """END TEMP SCROLLBAR CODE"""
+        #labelWindow = tk.Frame(self)
+        #labelWindow.pack(side=tk.TOP,padx=10,fill=tk.X,expand=True)
 
-        # Bind the label frame's <Configure> to the canvas' size
-        # See https://stackoverflow.com/questions/3085696/adding-a-scrollbar-to-a-group-of-widgets-in-tkinter
-        self.labelWindow1.bind("<Configure>", self.onFrameConfigure)
-
-        # Adding radio buttons for the different datasets, all linked together
-        # by a check/uncheck all
         levelValueCheckButtonList = []
         overallCheckButtonVariableList = []
         checkAllButtonList = []
         uncheckAllButtonList = []
         i=0
         maxNumLevelValues = 0
-        self.labels_list = []
         for levelName in trueLabelDict:
             j=0
             levelCheckButtonList = []
             levelCheckButtonVariableList = []
-            levelLabel = tk.Label(self.labelWindow, text=levelName+':', font='Helvetica 18 bold')
+            levelLabel = tk.Label(labelWindow, text=levelName+':', font='Helvetica 18 bold')
             levelLabel.grid(row=1,column = i*6,sticky=tk.N,columnspan=5)
             for levelValue in trueLabelDict[levelName]:
                 includeLevelValueBool = tk.BooleanVar()
-                cb = tk.Checkbutton(self.labelWindow, text=levelValue, variable=includeLevelValueBool)
-                self.labels_list.append(levelValue)
+                cb = tk.Checkbutton(labelWindow, text=levelValue, variable=includeLevelValueBool)
                 cb.grid(row=j+4,column=i*6+2,columnspan=2,sticky=tk.W)
-                self.labelWindow.grid_columnconfigure(i*6+3,weight=1)
+                labelWindow.grid_columnconfigure(i*6+3,weight=1)
                 cb.select()
                 levelCheckButtonList.append(cb)
                 levelCheckButtonVariableList.append(includeLevelValueBool)
                 j+=1
 
-            checkAllButton1 = checkUncheckAllButton(self.labelWindow,levelCheckButtonList, text='Check All')
+            checkAllButton1 = checkUncheckAllButton(labelWindow,levelCheckButtonList, text='Check All')
             checkAllButton1.configure(command=checkAllButton1.checkAll)
             checkAllButton1.grid(row=2,column=i*6,sticky=tk.N,columnspan=3)
             checkAllButtonList.append(checkAllButton1)
 
-            uncheckAllButton1 = checkUncheckAllButton(self.labelWindow,levelCheckButtonList, text='Uncheck All')
+            uncheckAllButton1 = checkUncheckAllButton(labelWindow,levelCheckButtonList, text='Uncheck All')
             uncheckAllButton1.configure(command=checkAllButton1.uncheckAll)
             uncheckAllButton1.grid(row=2,column=i*6+3,sticky=tk.N,columnspan=3)
             uncheckAllButtonList.append(checkAllButton1)
@@ -452,12 +432,6 @@ class SplineDatasetSelectionPage(tk.Frame):
             if len(trueLabelDict[levelName]) > maxNumLevelValues:
                 maxNumLevelValues = len(trueLabelDict[levelName])
             i+=1
-
-        # Adjust canvas width based on the length of the longest label.
-        font2 = tk.font.Font(family="Helvetica")
-        max_label_width = max(map(font2.measure, self.labels_list))
-        # Add some padding around the longest label, for the radio button etc.
-        self.w1.config(width=max(400, max_label_width+50))
 
         def collectInputs():
             includeLevelValueList = []
@@ -480,7 +454,7 @@ class SplineDatasetSelectionPage(tk.Frame):
                     fullFileName = fileNameDict[fileName]
                     [data, data_log, data_smooth, df]=process_file(folder,fullFileName)
                     df.to_hdf(path+"data/processed/"+fileName+".hdf", key="Features", mode="w")
-                print("All splines created and saved as hdf.")
+                tk.messagebox.showinfo("Info", "All selected splines created")
             #TODO: allow every stage (log/smooth/spline) to be plotted, not just spline
             else:
                 dflist = []
@@ -503,11 +477,9 @@ class SplineDatasetSelectionPage(tk.Frame):
                     master.switch_frame(selectLevelsPage,stackedFullDf,SplineDatasetSelectionPage)
 
 
-    def onFrameConfigure(self, event):
-        """ Reset the scroll region to encompass the entire inner frame,
-        so no radio button labels are missing. """
-        self.w1.configure(scrollregion=self.w1.bbox("all"))
+        buttonWindow = tk.Frame(self)
+        buttonWindow.pack(side=tk.TOP,pady=10)
 
-    def resizeFrame(self, event):
-        width = event.width
-        self.labelWindow1.itemconfig(self)
+        tk.Button(buttonWindow, text="OK",command=lambda: collectInputs()).pack(in_=buttonWindow,side=tk.LEFT)
+        tk.Button(buttonWindow, text="Back",command=lambda: master.switch_frame(master.homepage)).pack(in_=buttonWindow,side=tk.LEFT)
+        tk.Button(buttonWindow, text="Quit",command=lambda: quit()).pack(in_=buttonWindow,side=tk.LEFT)

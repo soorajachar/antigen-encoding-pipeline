@@ -6,16 +6,17 @@ import numpy as np
 import pickle,sys,os
 from itertools import groupby
 from matplotlib.widgets import RadioButtons,Button,CheckButtons,TextBox
-from scripts.gui.dataprocessing.miscFunctions import reindexDataFrame,returnTicks
+sys.path.insert(0, '../../programs/dataProcessing/')
+from miscFunctions import reindexDataFrame,returnTicks
 from matplotlib import colors,ticker
-
+        
 def plot(plottingDf,subsettedDf,kwargs,facetKwargs,auxillaryKwargs,plotOptions):
     whitespace = 0.8
     #Will need to update to make sure it pulls from y axis variable
     yvar = kwargs.pop('y')
     if auxillaryKwargs['subPlotType'] == 'kde':
         if auxillaryKwargs['dataType'] == 'singlecell':
-            facetKwargs['sharey'] = 'none'
+            facetKwargs['sharey'] = 'none' 
         fg = sns.FacetGrid(plottingDf,**facetKwargs,**kwargs,**plotOptions['Y']['figureDimensions'])
         #fg.map(sns.kdeplot,yvar,shade=False)
         fg.map(sns.kdeplot,yvar,shade=False,bw=15)
@@ -51,7 +52,7 @@ def plot(plottingDf,subsettedDf,kwargs,facetKwargs,auxillaryKwargs,plotOptions):
             else:
                 subplotValuesList = [plottingDf[yvar]]
 
-        for subplotValues in subplotValuesList:
+        for subplotValues in subplotValuesList: 
             #Make sure bins of histogram are over the correct range by appending the appropriate extrema
             newvals = np.append(subplotValues,[[0,1023]])
             hist,_ = np.histogram(newvals, bins=256)
@@ -67,7 +68,7 @@ def plot(plottingDf,subsettedDf,kwargs,facetKwargs,auxillaryKwargs,plotOptions):
             axis.set_xlim([minVal,maxVal])
             oldylabels = axis.get_yticks().tolist()
             oldmax = oldylabels[-1]
-
+            
             minticknum = 5
             factor = 10
             keepIncreasing = True
@@ -90,7 +91,7 @@ def plot(plottingDf,subsettedDf,kwargs,facetKwargs,auxillaryKwargs,plotOptions):
                         keepIncreasing = False
                         break
                 factor*=10
-
+            
             print(maxCounts[i])
             if maxCounts[i] > 0:
                 finalNumticks = int(maxCounts[i]/finalTickLength)+1
@@ -104,6 +105,6 @@ def plot(plottingDf,subsettedDf,kwargs,facetKwargs,auxillaryKwargs,plotOptions):
                     newyticklabels.append(int(i*finalTickLength))
                 axis.set_yticks(newyticks)
                 axis.set_yticklabels(newyticklabels)
-
+    
     fg.add_legend()
     return fg

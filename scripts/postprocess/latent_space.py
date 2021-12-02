@@ -17,9 +17,10 @@ import tkinter as tk
 import seaborn as sns
 from scripts.gui.plotting.plottingGUI import selectLevelsPage
 from scripts.process.adapt_dataframes import set_standard_order
+from sklearn.preprocessing import MinMaxScaler
 
 splitPath = os.getcwd().split('/')
-path = '/'.join(splitPath[:splitPath.index('cytokine-pipeline-master')+1])+'/'
+path = '/'.join(splitPath[:splitPath.index('antigen-encoding-pipeline')+1])+'/'
 
 class WeightMatrixSelectionPage(tk.Frame):
     def __init__(self, master, lspB,nsp):
@@ -45,18 +46,6 @@ class WeightMatrixSelectionPage(tk.Frame):
                 if datasetName not in trainingDatasets:
                     trainingDatasets.append(datasetName)
 
-        self.buttonWindow = tk.Frame(self)
-        self.buttonWindow.pack(side=tk.BOTTOM, pady=10)
-        tk.Button(self.buttonWindow, text="OK",
-            command=lambda: collectInputs()
-            ).pack(in_=self.buttonWindow,side=tk.LEFT)
-        tk.Button(self.buttonWindow, text="Back",
-            command=lambda: master.switch_frame(master.homepage)
-            ).pack(in_=self.buttonWindow,side=tk.LEFT)
-        tk.Button(self.buttonWindow, text="Quit",
-            command=lambda: quit()
-            ).pack(in_=self.buttonWindow,side=tk.LEFT)
-
         datasetVar = tk.StringVar(value=trainingDatasets[0])
         for i,dataset in enumerate(trainingDatasets):
             rb = tk.Radiobutton(mainWindow, text=dataset,padx = 20, variable=datasetVar,value=dataset)
@@ -77,6 +66,11 @@ class WeightMatrixSelectionPage(tk.Frame):
             df_min,df_max=pd.read_pickle(path+"output/trained-networks/min_max-"+datasetName+".pkl")
             master.switch_frame(WTorMutantDatasetSelectionPage)
 
+        buttonWindow = tk.Frame(self)
+        buttonWindow.pack(side=tk.TOP,pady=10)
+        tk.Button(buttonWindow, text="OK",command=lambda: collectInputs()).pack(in_=buttonWindow,side=tk.LEFT)
+        tk.Button(buttonWindow, text="Back",command=lambda: master.switch_frame(master.homepage)).pack(in_=buttonWindow,side=tk.LEFT)
+        tk.Button(buttonWindow, text="Quit",command=lambda: quit()).pack(in_=buttonWindow,side=tk.LEFT)
 
 class WTorMutantDatasetSelectionPage(tk.Frame):
     def __init__(self, master):
@@ -89,20 +83,8 @@ class WTorMutantDatasetSelectionPage(tk.Frame):
         mainWindow = tk.Frame(self)
         datasetRadioButtons = []
         #Mutant List
-        mutantTypeList = ["Tumor","Activation","TCellNumber","Macrophages","CAR","TCellType","CD25Mutant","ITAMDeficient","DrugPerturbation","NewPeptide"]
+        mutantTypeList = ["Tumor","Activation","TCellNumber","DifferentAPC","OT1CAR","DifferentTCR","DrugPerturbation","HighMI","hTCR"]
         datasetTypes = ['WT']+mutantTypeList
-
-        self.buttonWindow = tk.Frame(self)
-        self.buttonWindow.pack(side=tk.BOTTOM,pady=10)
-        tk.Button(self.buttonWindow, text="OK",
-            command=lambda: collectInputs()
-            ).pack(in_=self.buttonWindow,side=tk.LEFT)
-        tk.Button(self.buttonWindow, text="Back",
-            command=lambda: master.switch_frame(WeightMatrixSelectionPage,latentSpaceBool,nextSwitchPage)
-            ).pack(in_=self.buttonWindow,side=tk.LEFT)
-        tk.Button(self.buttonWindow, text="Quit",
-            command=lambda: quit()
-            ).pack(in_=self.buttonWindow,side=tk.LEFT)
 
         datasetVar = tk.StringVar(value=datasetTypes[0])
         for i,dataset in enumerate(datasetTypes):
@@ -122,8 +104,16 @@ class WTorMutantDatasetSelectionPage(tk.Frame):
                 #Subset features by what was used to train WT
                 featureColumns = pd.read_pickle(path+"output/trained-networks/train-"+datasetName+".pkl").columns
                 df_mutant = df_mutant.loc[:,featureColumns]
+                print(df_mutant)
                 #Normalize mutant
                 df_mutant=(df_mutant - df_min)/(df_max - df_min)
+                #dataList = []
+                #for dataset in df_mutant.index.unique('Data'):
+                #    dataDf = df_mutant.query("Data == @dataset")
+                #    dataDf.loc[:,:] = MinMaxScaler().fit_transform(dataDf.values)
+                #    dataList.append(dataDf)
+                #df_mutant = pd.concat(dataList) 
+                print(df_mutant)
                 #Project mutant on latent space
                 df_mutant_proj=pd.DataFrame(np.dot(df_mutant,weightMatrix.coefs_[0]),index=df_mutant.index,columns=["Node 1","Node 2"])
                 projectionName = '-'.join([datasetName,datasetType])
@@ -133,6 +123,13 @@ class WTorMutantDatasetSelectionPage(tk.Frame):
                 df_mutant_proj = pd.DataFrame(df_mutant_proj.iloc[:,-2:].values,index=pd.MultiIndex.from_frame(df_mutant_proj.iloc[:,:-2]),columns=['Node 1','Node 2'])
                 with open(path+'output/projected-dataframes/projection-'+projectionName+'.pkl','wb') as f:
                     pickle.dump(df_mutant_proj,f)
+                dataList = []
+                for dataset in df_mutant.index.unique('Data'):
+                    dataDf = df_mutant_proj.query("Data == @dataset")
+                    if np.mean(dataDf['Node 1'].values) < 0:
+                        dataDf['Node 1'] = dataDf['Node 1']*-1
+                    dataList.append(dataDf)
+                df_mutant_proj = pd.concat(dataList) 
                 #switch to plotting
                 if(latentSpaceBool):
                     proj_df = df_mutant_proj.iloc[::5,:]
@@ -141,6 +138,11 @@ class WTorMutantDatasetSelectionPage(tk.Frame):
                 else:
                     master.switch_frame(nextSwitchPage,df_mutant_proj,WTorMutantDatasetSelectionPage)
 
+        buttonWindow = tk.Frame(self)
+        buttonWindow.pack(side=tk.TOP,pady=10)
+        tk.Button(buttonWindow, text="OK",command=lambda: collectInputs()).pack(in_=buttonWindow,side=tk.LEFT)
+        tk.Button(buttonWindow, text="Back",command=lambda: master.switch_frame(WeightMatrixSelectionPage,latentSpaceBool,nextSwitchPage)).pack(in_=buttonWindow,side=tk.LEFT)
+        tk.Button(buttonWindow, text="Quit",command=lambda: quit()).pack(in_=buttonWindow,side=tk.LEFT)
 
 class TrainingDatasetSelectionPage(tk.Frame):
     def __init__(self, master):
@@ -158,58 +160,27 @@ class TrainingDatasetSelectionPage(tk.Frame):
         for dataName in pd.unique(sortedWT['Data']):
             trainingDatasets.append(dataName)
 
-        self.buttonWindow = tk.Frame(self)
-        self.buttonWindow.pack(side=tk.TOP,pady=10)
-        tk.Button(self.buttonWindow, text="OK",
-            command=lambda: collectInputs()
-            ).pack(in_=self.buttonWindow,side=tk.LEFT)
-        tk.Button(self.buttonWindow, text="Back",
-            command=lambda: master.switch_frame(WTorMutantDatasetSelectionPage)
-            ).pack(in_=self.buttonWindow,side=tk.LEFT)
-        tk.Button(self.buttonWindow, text="Quit",
-            command=lambda: quit()
-            ).pack(in_=self.buttonWindow,side=tk.LEFT)
+        """BEGIN TEMP SCROLLBAR CODE"""
+        labelWindow1 = tk.Frame(self)
+        labelWindow1.pack(side=tk.TOP,padx=10,fill=tk.X,expand=True)
 
+        #Make canvas
+        w1 = tk.Canvas(labelWindow1, width=600, height=400, scrollregion=(0,0,3000,1000))
 
-        # Frame to contain the scrollable canvas and the scrollbars within the
-        # main window.
-        self.labelWindow1 = tk.Frame(self)
-        self.labelWindow1.pack(side=tk.TOP,padx=10,fill=tk.X,expand=tk.NO)
-
-        # Make canvas inside that frame
-        self.w1 = tk.Canvas(self.labelWindow1, borderwidth=0, width=600,
-            height=600)
-
-        # Make scrollbar in side the self.labelWindow1 frame as well
-        scr_v1 = tk.Scrollbar(self.labelWindow1, orient=tk.VERTICAL, command=self.w1.yview)
+        #Make scrollbar
+        scr_v1 = tk.Scrollbar(labelWindow1,orient=tk.VERTICAL)
         scr_v1.pack(side=tk.RIGHT,fill=tk.Y)
-        # Add and bind scrollbar to canvas
-        self.w1.config(yscrollcommand=scr_v1.set)
-        self.w1.pack(fill=tk.BOTH, expand=tk.NO)
-
-        # Make another horizontal scrollbar
-        scr_v2 = tk.Scrollbar(self.labelWindow1, orient=tk.HORIZONTAL, command=self.w1.xview)
-        scr_v2.pack(side=tk.BOTTOM, fill=tk.X)
-        self.w1.config(xscrollcommand=scr_v2.set)
-        self.w1.pack(fill=tk.BOTH, expand=tk.NO)
-
-        # Make a frame to contain the list of radio buttons inside the Canvas
-        # This is to create all buttons at once so they can be scrolled
-        self.labelWindow = tk.Frame(self.w1)
-        self.labelWindow.pack(fill=tk.BOTH, expand=tk.NO)
-        self.w1.create_window((0,0), window=self.labelWindow, anchor = tk.NW)
-
-        # Bind the label frame's <Configure> to the canvas' size
-        # See https://stackoverflow.com/questions/3085696/adding-a-scrollbar-to-a-group-of-widgets-in-tkinter
-        self.labelWindow1.bind("<Configure>", self.onFrameConfigure)
-        #labelWindow = tk.Frame(self)
-        #labelWindow.pack(side=tk.TOP,padx=10,fill=tk.X,expand=True)
+        scr_v1.config(command=w1.yview)
+        #Add scrollbar to canvas
+        w1.config(yscrollcommand=scr_v1.set)
+        w1.pack(fill=tk.BOTH,expand=True)
 
         #Make and add frame for widgets inside of canvas
         #canvas_frame = tk.Frame(w1)
-        mainWindow = tk.Frame(self.w1)
+        mainWindow = tk.Frame(w1)
         mainWindow.pack()
-        self.w1.create_window((0,0),window=mainWindow, anchor = tk.NW)
+        w1.create_window((0,0),window=mainWindow, anchor = tk.NW)
+        """END TEMP SCROLLBAR CODE"""
 
         datasetVar = tk.StringVar(value=trainingDatasets[0])
         for i,dataset in enumerate(trainingDatasets):
@@ -246,79 +217,122 @@ class TrainingDatasetSelectionPage(tk.Frame):
             else:
                 master.switch_frame(nextSwitchPage,df_WT_proj,TrainingDatasetSelectionPage)
 
-    def onFrameConfigure(self, event):
-        """ Reset the scroll region to encompass the entire inner frame,
-        so no radio button labels are missing. """
-        self.w1.configure(scrollregion=self.w1.bbox("all"))
+        buttonWindow = tk.Frame(self)
+        buttonWindow.pack(side=tk.TOP,pady=10)
+        tk.Button(buttonWindow, text="OK",command=lambda: collectInputs()).pack(in_=buttonWindow,side=tk.LEFT)
+        tk.Button(buttonWindow, text="Back",command=lambda: master.switch_frame(WTorMutantDatasetSelectionPage)).pack(in_=buttonWindow,side=tk.LEFT)
+        tk.Button(buttonWindow, text="Quit",command=lambda: quit()).pack(in_=buttonWindow,side=tk.LEFT)
 
-    def resizeFrame(self, event):
-        width = event.width
-        self.labelWindow1.itemconfig(self)
+def import_WT_output():
+    """Import splines from wildtype naive OT-1 T cells by looping through all datasets
+    Returns:
+            df_full (dataframe): the dataframe with processed cytokine data
+    """
 
-def import_mutant_output(mutant, folder=path+"data/processed/"):
-    """Import processed cytokine data from experiments that contains
-        "mutant" conditions.
+    folder="../data/processed/"
+
+    naive_pairs={
+            "ActivationType": "Naive",
+            "Antibody": "None",
+            "APC": "B6",
+            "APCType": "Splenocyte",
+            "CARConstruct":"None",
+            "CAR_Antigen":"None",
+            "Genotype": "WT",
+            "IFNgPulseConcentration":"None",
+            "TCellType": "OT1",
+            "TLR_Agonist":"None",
+            "TumorCellNumber":"0k",
+            "DrugAdditionTime":24,
+            "Drug":"Null"
+            }
+
+    for file in os.listdir(folder):
+
+        if ".hdf" not in file:
+            continue
+
+        df=pd.read_hdf(folder + file)
+        mask=[True] * len(df)
+
+        for index_name in df.index.names:
+            if index_name in naive_pairs.keys():
+                mask=np.array(mask) & np.array([index == naive_pairs[index_name] for index in df.index.get_level_values(index_name)])
+                df=df.droplevel([index_name])
+
+        df=pd.concat([df[mask]],keys=[file[:-4]],names=["Data"]) #add experiment name as multiindex level
+
+        if "df_full" not in locals():
+            df_full=df.copy()
+        else:
+            df_full=pd.concat((df_full,df))
+
+    return df_full
+
+def import_mutant_output(mutant):
+    """Import processed cytokine data from an experiment that contains mutant data
 
     Args:
-        mutant (str): name of file with mutant data.
-                Has to be one of the following: "Tumor", "Activation",
-                    "TCellNumber", "Macrophages", "CAR", "TCellType",
-                    "CD25Mutant", "ITAMDeficient", "Drug"
-        folder (str): full path to folder containing .hdf files to parse
+            mutant (str): name of file with mutant data.
+                    Has to be one of the following "Tumor","Activation","TCellNumber","DifferentAPC","OT1CAR","DifferentTCR"
 
     Returns:
         df_full (dataframe): the dataframe with processed cytokine data
     """
 
     naive_level_values={
-        "ActivationType": "Naive",
-        "Antibody": "None",
-        "APC": "B6",
-        "APCType": "Splenocyte",
-        "CARConstruct": "None",
-        "CAR_Antigen": "None",
-        "Genotype": "WT",
-        "IFNgPulseConcentration": "None",
-        "TCellType": "OT1",
-        "TLR_Agonist": "None",
-        "TumorCellNumber": "0k",
-        "DrugAdditionTime": 36,
-        "Drug": "Null",
-        "ConditionType": "Control",
-        "TCR": "OT1"
-    }
+                "ActivationType": "Naive",
+                "Antibody": "None",
+                "APC": "B6",
+                "APCType": "Splenocyte",
+                "CARConstruct":"None",
+                "ConditionType":"Coculture",
+                "CAR_Antigen":"None",
+                "Genotype": "WT",
+                "IFNgPulseConcentration":"None",
+                "TCellType": "OT1",
+                "TLR_Agonist":"None",
+            }
 
     mutant_levels={
-        "Tumor": ["APC", "APCType", "IFNgPulseConcentration"],
-        "Activation": ["ActivationType"],
-        "TCellNumber": [],
-        "Macrophages": ["TLR_Agonist", "APCType"],
-        "CAR":["CAR_Antigen", "Genotype", "CARConstruct"],
-        "TCellType": ["TCellType", "TCR"],
-        "CD25Mutant": ["Genotype"],
-        "ITAMDeficient": ["Genotype"],
-        "NewPeptide": [],
-        "Drug": ["Drug", "DrugAdditionTime"]
-    }
+                "Tumor": ["APC","APCType","IFNgPulseConcentration"],
+                "Activation": ["ActivationType"],
+                "TCellNumber": [],
+                "DifferentAPC": ["TLR_Agonist","APCType"],
+                "OT1CAR":["CAR_Antigen","Genotype","CARConstruct"],
+                "DifferentTCR":["TCellType"],
+                "DrugPerturbation":['DrugAdditionTime','Drug'],
+                "HighMI":['Replicate'],
+                "hTCR":['Donor'],
+            }
 
-    essential_levels=["TCellNumber", "Peptide", "Concentration", "Time"]
+    essential_levels=["TCellNumber","Peptide","Concentration","Time"]
 
-    dfs_dict = {}
+    folder=path+"data/processed/"
+
     for file in os.listdir(folder):
-        if (mutant not in file) | (not file.endswith(".hdf")):
-            continue
-        df = pd.read_hdf(folder + file)
 
-        # If level not in essential levels or mutant-required level,
-        # keep naive level values and drop level
+        if (mutant not in file) | (".hdf" not in file):
+            continue
+
+        df=pd.read_hdf(folder + "/" + file)
+
+        # If level not in essential levels or mutant-required level, keep naive level values and drop level
+        print(file)
+        print(df.index.names)
         for level in df.index.names:
-            if level not in essential_levels + mutant_levels[mutant]:
-                df = df[df.index.get_level_values(level) == naive_level_values[level]]
-                df = df.droplevel(level, axis=0)
-        dfs_dict[file[:-4]] = df
+            if level not in essential_levels+mutant_levels[mutant]:
+                df=df[df.index.get_level_values(level)==naive_level_values[level]]
+                df=df.droplevel(level,axis=0)
+
+        df=pd.concat([df],keys=[file[:-4]],names=["Data"]) #add experiment name as multiindex level
+
         print(file)
         print(df.index.names)
 
-    # Concatenate all saved dataframes
-    df_full = pd.concat(dfs_dict, names=["Data"])
+        if "df_full" not in locals():
+            df_full=df.copy()
+        else:
+            df_full=pd.concat([df_full,df],levels=["Data"]+mutant_levels[mutant]+essential_levels)
+
     return df_full

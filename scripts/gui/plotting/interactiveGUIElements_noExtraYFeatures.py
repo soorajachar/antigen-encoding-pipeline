@@ -1,4 +1,4 @@
-#!/usr/bin/env python3
+#!/usr/bin/env python3 
 import json,pickle,math,matplotlib,sys,os,string,re
 from sys import platform as sys_pf
 if sys_pf == 'darwin':
@@ -12,8 +12,8 @@ import itertools
 from matplotlib import pyplot as plt
 from collections import OrderedDict
 from operator import itemgetter
-from scripts.gui.dataprocessing.miscFunctions import (sortSINumerically,
-    reindexDataFrame, setMaxWidth, returnSpecificExtensionFiles, returnTicks)
+sys.path.insert(0, '../dataprocessing/')
+from miscFunctions import sortSINumerically,reindexDataFrame,setMaxWidth,returnSpecificExtensionFiles,returnTicks
 
 def createParameterSelectionRadiobuttons(radiobuttonWindow,parameterList,parameterValueDict):
     radiobuttonList = []
@@ -47,7 +47,7 @@ def createParameterAdjustmentSliders(sliderWindow,parameterList,parameterBoundsD
         slider.set(parameterBounds[3])
         sliderList.append(slider)
     return sliderList
-
+    
 def getSliderValues(sliders,parameterList,mutuallyExclusiveParameterList = []):
     parametersForSliderFunction = {}
     for slider,parameter in zip(sliders,parameterList):
@@ -87,7 +87,7 @@ def fixDuckTyping(plottingDf,kwargs):
 
 def get_cluster_centroids(plottingDf):
     clusterCentroids = []
-    for cluster in pd.unique(plottingDf['Cluster']):
+    for cluster in pd.unique(plottingDf['Cluster']): 
         numeric = re.findall(r'\d+', cluster)
         clusterSubset = plottingDf[plottingDf['Cluster'] == cluster]
         clusterX = list(clusterSubset['Dimension 1'])
@@ -141,7 +141,7 @@ def returnOriginalOrders(trueLabelDict,plottingDf,kwargs,dimensionality):
                 else:
                     orderedValues = list(pd.unique(plottingDf[newkwargs[kwarg]]))
         if newkwargs[kwarg] != 'None':
-            if kwarg == 'x':
+            if kwarg == 'x':  
                 orderDict['order'] = orderedValues
             else:
                 orderDict[kwarg+'_order'] = orderedValues
@@ -158,7 +158,7 @@ def addLogicleAxes(axis,ticks):
         else:
             axis.set_yticks(ytickValues)
             axis.set_yticklabels(ytickLabels)
-
+         
 def addCountYAxis(axis,subplotValues):
     maxVal = max(subplotValues)
     minVal = min(subplotValues)
@@ -203,7 +203,7 @@ def addCountYAxis(axis,subplotValues):
                 keepIncreasing = False
                 break
         factor*=10
-
+    
     if maxCounts[i] > 0:
         finalNumticks = int(maxCounts[i]/finalTickLength)+1
         if finalNumticks <= 1:
@@ -254,10 +254,10 @@ def updateDropdownControlledCompositionPlot(frameCanvas,plotAxis,plottingDf,true
                 plottingDf[featureHue] = valuesHue
             hue_orderDict = {}
             if newkwargs['hue'] == 'Cluster':
-                hue_orderDict['hue_order'] = orderedClusters
+                hue_orderDict['hue_order'] = orderedClusters 
             else:
                 if 'hue_order' in orderDict:
-                    hue_orderDict['hue_order'] = orderDict['hue_order']
+                    hue_orderDict['hue_order'] = orderDict['hue_order'] 
             g3 = sns.scatterplot(data=plottingDf,**newkwargs,**hue_orderDict,**paletteKwargs,s=5,alpha=0.7)
             leg = g3.legend(loc='center right', bbox_to_anchor=(legendoffset, 0.5), ncol=1,framealpha=0)
             if max(plottingDf['Metric']) > 100:
@@ -266,10 +266,10 @@ def updateDropdownControlledCompositionPlot(frameCanvas,plotAxis,plottingDf,true
                 tickDict['x'] = ticks
                 tickDict['y'] = ticks
                 addLogicleAxes(plotAxis,tickDict)
-
+        
             #Rotate index labels if x not cluster
             #If feature plot on x axis, change x axis name
-
+             
         #barplot (1.5d) or kde (1d)
         else:
             orderedClusters = list(map(str,sorted(list(map(int,list(pd.unique(plottingDf['Cluster'])))))))
@@ -297,9 +297,9 @@ def updateDropdownControlledCompositionPlot(frameCanvas,plotAxis,plottingDf,true
                     else:
                         plottingDf = plottingDf[plottingDf['Feature'] == feature]
                         if newkwargs['hue'] == 'Cluster':
-                            hue_order = orderedClusters
+                            hue_order = orderedClusters 
                         else:
-                            hue_order = orderDict['hue_order']
+                            hue_order = orderDict['hue_order'] 
                         for i,cluster in enumerate(hue_order):
                             g3 = sns.kdeplot(plottingDf[plottingDf[newkwargs['hue']] == cluster][newkwargs['x']],color=palette[i],ax=plotAxis,shade=True,label=cluster)
                         if max(plottingDf['Metric']) > 100:
@@ -308,13 +308,13 @@ def updateDropdownControlledCompositionPlot(frameCanvas,plotAxis,plottingDf,true
                             tickDict['x'] = ticks
                             addLogicleAxes(plotAxis,tickDict)
                             addCountYAxis(plotAxis,plottingDf['Metric'])
-
+            
                     kdePlotBool = True
                 else:
                     #"Unstack" dataframe
                     plottingDf = plottingDf[plottingDf['Feature'] == plottingDf['Feature'][0]]
                     g3 = sns.countplot(data=plottingDf,ax=plotAxis,**newkwargs,**orderDict,edgecolor='black',linewidth=1)
-            else:
+            else: 
                 #"Unstack" dataframe
                 plottingDf = plottingDf[plottingDf['Feature'] == plottingDf['Feature'][0]]
                 if 'hue' in newkwargs.keys():
@@ -326,7 +326,7 @@ def updateDropdownControlledCompositionPlot(frameCanvas,plotAxis,plottingDf,true
                     plottingDf = plottingDf.to_frame('percent').reset_index()
                 newkwargs['y'] = 'percent'
                 g3 = sns.barplot(data=plottingDf,ax=plotAxis,**newkwargs,**orderDict,edgecolor='black',linewidth=1)
-
+        
             #Rotate index labels if x not cluster
             if newkwargs['x'] != 'Cluster':
                 #if not kdeplot, rotate index labels
@@ -353,7 +353,7 @@ def updateDropdownControlledCompositionPlot(frameCanvas,plotAxis,plottingDf,true
 
 def updateDropdownControlledPlot(frameCanvas,plotAxis,plottingDf,levelVars,xColumn,yColumn,alpha=0.3,legendoffset=-0.1,trueLabelDict = []):
     plotAxis.clear()
-
+    
     parameters = [levelVars['hue'].get(),levelVars['style'].get(),levelVars['size'].get()]
     parameters2 = ['hue','style','size']
     newkwargs = {'x':xColumn,'y':yColumn}
@@ -378,7 +378,7 @@ def updateDropdownControlledPlot(frameCanvas,plotAxis,plottingDf,levelVars,xColu
             newkwargs['palette'] = palette
         else:
             print('NONE')
-            palette = sns.color_palette(sns.color_palette(),len(pd.unique(plottingDf[newkwargs['hue']])))
+            palette = sns.color_palette(sns.color_palette(),len(pd.unique(plottingDf[newkwargs['hue']]))) 
             newkwargs['palette'] = palette
     if 'hue' in newkwargs.keys():
         if newkwargs['hue'] == 'Cluster':
@@ -424,21 +424,21 @@ def getDefaultKwargs(df):
             numUniqueElements.append(len(list(pd.unique(df[column]))))
             tempDict[column] = len(list(pd.unique(df[column])))
     columnsLeftToAssign = responseColumns.copy()
-    sortedNumUniqueElements = sorted(numUniqueElements)[::-1]
+    sortedNumUniqueElements = sorted(numUniqueElements)[::-1] 
     numUniqueElements2 = numUniqueElements.copy()
     sortedNumUniqueElements2 = sortedNumUniqueElements.copy()
-
+    
     sortedTempDict = OrderedDict(sorted(tempDict.items(), key=itemgetter(1),reverse=True))
     #sortedTempDict = sorted(tempDict, key=tempDict.get)
 
     #Assign hue variable
     maxUniqueElementsColumn = responseColumns[numUniqueElements.index(sortedNumUniqueElements[0])]
     kwargs['hue'] = maxUniqueElementsColumn
-
+    
     columnsLeftToAssign.remove(maxUniqueElementsColumn)
     numUniqueElements2.remove(sortedNumUniqueElements2[0])
     sortedNumUniqueElements2 = sortedNumUniqueElements2[1:]
-
+    
     if len(sortedNumUniqueElements) > 1:
         #Assign style variable
         if sortedNumUniqueElements[1] < 7:
@@ -449,7 +449,7 @@ def getDefaultKwargs(df):
             columnsLeftToAssign.remove(secondMaxUniqueElementsColumn)
             numUniqueElements2.remove(sortedNumUniqueElements2[0])
             sortedNumUniqueElements2 = sortedNumUniqueElements2[1:]
-
+    
     if len(sortedNumUniqueElements) > 2:
         #Assign size variable
         if len(columnsLeftToAssign) > 0:
@@ -462,7 +462,7 @@ def getDefaultKwargs(df):
         else:
             if 'Time' in df.columns and len(pd.unique(df['Time'])) > 1:
                 kwargs['size'] = 'Time'
-
+    
     defaultDict = {'hue':'None','style':'None','size':'None'}
     defaultplotkwargs = kwargs.copy()
     if 'Event' not in df.columns:
