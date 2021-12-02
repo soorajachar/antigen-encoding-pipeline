@@ -1,5 +1,5 @@
 # Antigen encoding processing pipeline
-Pipeline to process cytokine data, extract integral features, train a neural network, and parameterize the latent space
+Pipeline to process cytokine data, extract integral features, train a neural network, and parameterize a latent space for antigen encoding paper
 
 To process the data, run the script named "antigen-encoding-pipeline-gui.py" (type ./antigen-encoding-pipeline-gui.py from the terminal)
 
