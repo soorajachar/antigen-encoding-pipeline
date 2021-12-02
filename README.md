@@ -3,9 +3,17 @@ Pipeline to process cytokine data, extract integral features, train a neural net
 
 To process the data, run the script named "antigen-encoding-pipeline-gui.py" (type ./antigen-encoding-pipeline-gui.py from the terminal)
 
-When running for the first time, or when a new experiment needs to be added, drop the raw dataframes from plateypus in data/current/
-Data must belong to one of these categories of experiment and are required to have the name of that category somewhere in their dataframe's name:
-'PeptideComparison','TCellNumber','HighMI','Activation','DifferentAPC','Tumor','DifferentTCR','DrugPerturbation','hTCR','OT1CAR'
+When running for the first time, or when a new experiment needs to be added, drop the raw dataframes from plateypus in data/current. Data must belong to one of these categories of experiment and are required to have the name of that category somewhere in their dataframe's name:
+* 'PeptideComparison'
+* 'TCellNumber'
+* 'HighMI'
+* 'Activation'
+* 'DifferentAPC'
+* 'Tumor'
+* 'DifferentTCR'
+* 'DrugPerturbation'
+* 'hTCR'
+* 'OT1CAR'
 
 Then press:
 1. Option 1 (Format raw dataframes)
