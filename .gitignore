@@ -1,6 +1,7 @@
 *.DS_Store
 *__pycache__*
 *.hdf
+!data/current/*.hdf
 *.pkl
 *.pdf
 *.png
