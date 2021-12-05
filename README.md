@@ -1,5 +1,9 @@
 # Antigen encoding processing pipeline
-Pipeline to process cytokine data, extract integral features, train a neural network, and parameterize a latent space for antigen encoding paper
+Pipeline to process cytokine data, extract integral features, train a neural network, and parameterize a latent space for 
+
+Sooraj R. Achar#, François X. P. Bourassa#, Thomas J. Rademaker#, Angela Lee, Taisuke Kondo, Emanuel Salazar-Cavazos, John S. Davies, Naomi Taylor, Paul François, and Grégoire Altan-Bonnet. "Universal antigen encoding of T cell activation from high dimensional cytokine data", submitted, 2021. (#: these authors contributed equally)
+
+More details on the Github where the code is hosted: https://github.com/soorajachar/antigen-encoding-pipeline
 
 To process the data, run the script named "antigen-encoding-pipeline-gui.py" (type ./antigen-encoding-pipeline-gui.py from the terminal)
 
